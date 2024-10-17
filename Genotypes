@@ -1,0 +1,21 @@
+   ## Download data from Dryad
+wget 'https://dryad-assetstore-merritt-west.s3.us-west-2.amazonaws.com/ark%3A/13030/m58t1f71%7C1%7Cproducer/Genotypes.zip?response-content-disposition=attachment%3B%20filename%3DGenotypes.zip&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA2KERHV5E3OITXZXC%2F20241017%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20241017T004416Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=233461dc436bed09e87daabfd9c820582e29931ff03271836488d8759795d814'
+gunzip cimmyt2013_2020-SNPs-1filter-passed.vcf.gz
+   ## Add header necessary for bcftools
+sed -i '1s/^/##fileformat=VCFv4.2 /' cimmyt2013_2020-SNPs-1filter-passed.vcf
+   ## Remove minor allele frequences less than 0.01 (other QC steps like HWE, LD had no effect)
+module load bcftools/1.15--haf5b3da_0
+bcftools filter -e 'MAF<0.01' cimmyt2013_2020-SNPs-1filter-passed.vcf.gz > SNPs_filtered.vcf
+  ## Remove SNPs tied to unknown chromosomes
+grep -v 'UN' SNPs_filtered.vcf > SNPs_UN_filtered.vcf
+  ## Bgzip file
+module load samtools/1.15--h3843a85_0
+bgzip SNPs_UN_filtered.vcf
+  ## Phase with Beagle, used genetic wheat map from https://doi.org/10.1038/s41598-018-38111-3 Dataset S2
+java -jar beagle.06Aug24.a91.jar gt=SNPs_UN_filtered.vcf.gz map=wheatmap.map impute=false out=SNPs_phased
+gunzip SNPs_phased.vcf.gz
+  ## Convert phased alleles to integer values
+sed -i 's/0|0/0/g' SNPs_phased.vcf
+sed -i 's/1|0/0.5/g' SNPs_phased.vcf
+sed -i 's/0|1/0.5/g' SNPs_phased.vcf
+sed -i 's/1|1/1/g' SNPs_phased.vcf
